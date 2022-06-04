@@ -7,5 +7,5 @@
 nimcache/
 nimblecache/
 htmldocs/
-miniaudicimpl.c
+miniaudiocimpl.c
 *.out

@@ -1,3 +1,2 @@
 #define MINIAUDIO_IMPLEMENTATION
-#include "src/miniaudio/miniaudio.h"
-  
+#include "/home/jason/Documents/miniaudio/src/miniaudio/miniaudio.h"
