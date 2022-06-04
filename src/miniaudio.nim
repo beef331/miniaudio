@@ -128,7 +128,7 @@ proc duplicate*(engine: var AudioEngine, sound: Sound): Sound =
   wrapError maSoundInitCopy(engine.distinctBase.addr, sound, 0, nil, result)
 
 template set(name: untyped, t: typedesc) =
-  proc name*[T: Vec3](sound: Sound): t =
+  proc name*(sound: Sound): t =
      sound.`maSoundGet name`()
 
   proc `name =`*(sound: Sound, val: t) =
