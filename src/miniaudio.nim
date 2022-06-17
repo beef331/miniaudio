@@ -20,10 +20,12 @@ when defined(linux):
 import std/typetraits
 
 type
-  AudioEngine* = distinct maEngine
-  AudioResult* = maResult
-  Sound* =  ref maSound
   Listener* = distinct uint32
+  TAudioEngine = object of maEngine
+  AudioEngine* = ref TAudioEngine
+  AudioResult* = maResult
+  TSound = object of maSound
+  Sound* =  ref TSound
   SoundGroup* = distinct ptr maSoundGroup
   MiniAudioError* = object of CatchableError
 
@@ -35,65 +37,80 @@ type
     v.y = 3f32
     v.z = 3f32
 
-converter toMaBool*(b: bool): mauint32 = mauint32(b)
-converter fromMaBool*(i: mauint32): bool = bool(i)
+  SoundFlag* = enum
+    stream
+    decode
+    async
+    waitInit
+    noDefaultAttachment ## Do not attach to the endpoint by default. Useful for when setting up nodes in a complex graph system.
+    noPitch ## Disable pitch shifting with ma_sound_set_pitch() and ma_sound_group_set_pitch(). This is an optimization.
+    noSpatialization
+  SoundFlags* = set[SoundFlag]
+
+proc `=destroy`(engine: var TAudioEngine) =
+  maEngineUninit(engine.addr)
+
+proc `=destroy`(sound: var TSound) =
+  maSoundUninit(sound.addr)
 
 template wrapError(body: typed) =
   let res = body
   if res != MaSuccess:
     raise newException(MiniAudioError, $res)
 
-#[
-TODO Fix whatever crashes with the following
-proc `=destroy`*(engine: var AudioEngine) =
-  echo "Destroy engine"
-  maEngineUninit(addr engine.distinctBase)
+converter toMaEnginePtr*(s: AudioEngine): ptr maEngine = cast[ptr maEngine](s)
 
-proc `=destroy`*(sound: var Sound) =
-  echo "Destroy sound"
-  maSoundUninit(addr sound.distinctBase)
-]#
+proc `$`*(listener: Listener): string {.borrow.}
 
+converter toMaBool*(b: bool): mauint32 = mauint32(b)
+converter fromMaBool*(i: mauint32): bool = bool(i)
 
-iterator listeners*(engine: var AudioEngine): Listener =
-  for i in 0..engine.distinctBase.addr.maEngineGetListenerCount:
-    yield Listener i
+iterator listenerIter*(engine: AudioEngine): Listener =
+  for i in 0 .. engine.maEngineGetListenerCount:
+    yield Listener(i)
 
-proc getListenerPos*[T: Vec3](engine: var AudioEngine, listener: Listener): T =
+proc getListenerPos*[T: Vec3](engine: AudioEngine, listener: Listener): T =
   mixin `x=`, `y=`, `z=`
-  var pos = engine.distinctBase.addr.maEngineListenerGetPosition(uint32 listener)
+  var pos = engine.maEngineListenerGetPosition(uint32 listener)
   result.x = pos.x
   result.y = pos.y
   result.z = pos.z
 
-proc setListenerPos*(engine: var AudioEngine, listener: Listener, pos: Vec3) =
+proc setListenerPos*(engine: AudioEngine, listener: Listener, pos: Vec3) =
   mixin `x`, `y`, `z`
-  engine.distinctBase.addr.maEngineListenerSetPosition(uint32 listener, pos.x, pos.y, pos.z)
+  engine.maEngineListenerSetPosition(uint32 listener, pos.x, pos.y, pos.z)
+
+proc enabled*(engine: AudioEngine, listener: Listener): bool =
+  engine.maEngineListenerIsEnabled(listener.distinctBase)
+
+proc setEnabled*(engine: AudioEngine, listener: Listener, val: bool) =
+  engine.maEngineListenerSetEnabled(listener.distinctBase, val)
 
 
-proc getListenerDir*[T: Vec3](engine: var AudioEngine, listener: Listener): T =
+proc getListenerDir*[T: Vec3](engine: AudioEngine, listener: Listener): T =
   mixin `x=`, `y=`, `z=`
-  var pos = engine.distinctBase.addr.maEngineListenerGetDirection(uint32 listener)
+  var pos = engine.maEngineListenerGetDirection(uint32 listener)
   result.x = pos.x
   result.y = pos.y
   result.z = pos.z
 
-proc setListenerDir*(engine: var AudioEngine, listener: Listener, pos: Vec3) =
+proc setListenerDir*(engine: AudioEngine, listener: Listener, pos: Vec3) =
   mixin `x`, `y`, `z`
-  engine.distinctBase.addr.maEngineListenerSetDirection(uint32 listener, pos.x, pos.y, pos.z)
+  engine.maEngineListenerSetDirection(uint32 listener, pos.x, pos.y, pos.z)
 
 
 converter toMaSoundPtr*(s: Sound): ptr maSound = cast[ptr maSound](s)
 
-proc init*(_: typedesc[AudioEngine]): AudioEngine =
-  wrapError maEngineInit(nil, addr result.distinctBase)
-
-proc playSound*(engine: var AudioEngine, path: string, group: SoundGroup = nil) =
-  wrapError maEnginePlaySound(addr engine.distinctBase, path.cstring, group.distinctBase)
-
-proc loadSoundFromFile*(engine: var AudioEngine, path: openarray[char], flags = 0u32): Sound =
+proc new*(_: typedesc[AudioEngine]): AudioEngine =
   new result
-  wrapError maSoundInitFromFile(addr engine.distinctBase, path[0].unsafeaddr, flags, nil, nil, result)
+  wrapError maEngineInit(nil, result)
+
+proc playSound*(engine: AudioEngine, path: string, group: SoundGroup = nil) =
+  wrapError maEnginePlaySound(engine, path.cstring, group.distinctBase)
+
+proc loadSoundFromFile*(engine: AudioEngine, path: openarray[char], flags = SoundFlags({})): Sound =
+  new result
+  wrapError maSoundInitFromFile(engine, path[0].unsafeaddr, cast[uint32](flags), nil, nil, result)
 
 proc looping*(sound: Sound): bool =
   sound.maSoundIsLooping()
@@ -122,10 +139,10 @@ proc cursor*(sound: Sound): float32 =
 proc length*(sound: Sound): float32 =
   wrapError sound.maSoundGetLengthInSeconds(result.addr)
 
-proc duplicate*(engine: var AudioEngine, sound: Sound): Sound =
+proc duplicate*(engine: AudioEngine, sound: Sound): Sound =
   assert sound != nil
   new result
-  wrapError maSoundInitCopy(engine.distinctBase.addr, sound, 0, nil, result)
+  wrapError maSoundInitCopy(engine, sound, 0, nil, result)
 
 template set(name: untyped, t: typedesc) =
   proc name*(sound: Sound): t =
@@ -169,7 +186,7 @@ when isMainModule:
     x, y, z: float32
 
   var
-    engine = AudioEngine.init()
+    engine = AudioEngine.new()
     sound = loadSoundFromFile(engine, "test.wav")
   sound.looping = true
   sound.start()
