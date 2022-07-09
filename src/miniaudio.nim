@@ -1,11 +1,13 @@
-import futhark
 import std/[os, strformat]
-
 const miniAudioPath = currentSourcePath().parentDir / "miniaudio"
-importc:
-  sysPath "/usr/lib/clang/13.0.1/include"
-  path miniAudioPath
-  "miniaudio.h"
+
+when defined miniAudioUseFuthark:
+  importc:
+    sysPath "/usr/lib/clang/13.0.1/include"
+    path miniAudioPath
+    "miniaudio.h"
+else:
+  import miniaudio/futharkminiaudio
 
 static:
   writeFile("miniaudiocimpl.c",
@@ -13,8 +15,9 @@ fmt"""
 #define MINIAUDIO_IMPLEMENTATION
 #include "{miniAudioPath}/miniaudio.h"
 """)
+
 {.compile: "miniaudiocimpl.c".}
-when defined(linux):
+when defined(posix):
   {.passL:"-lpthread -lm -ldl".}
 
 import std/typetraits
@@ -195,3 +198,4 @@ when isMainModule:
 
   echo "Press Enter to quit..."
   discard stdin.readLine()
+
