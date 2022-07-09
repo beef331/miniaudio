@@ -13,7 +13,7 @@ static:
   writeFile("miniaudiocimpl.c",
 fmt"""
 #define MINIAUDIO_IMPLEMENTATION
-#include "{miniAudioPath}/miniaudio.h"
+#include "src/miniaudio/miniaudio.h"
 """)
 
 {.compile: "miniaudiocimpl.c".}
