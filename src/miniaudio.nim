@@ -9,16 +9,17 @@ when defined miniAudioUseFuthark:
 else:
   import miniaudio/futharkminiaudio
 
-static:
-  writeFile("miniaudiocimpl.c",
-fmt"""
-#define MINIAUDIO_IMPLEMENTATION
-#include "{miniAudioPath}/miniaudio.h"
-""")
+when not defined(nimsuggest):
+  static:
+    writeFile("miniaudiocimpl.c",
+  fmt"""
+  #define MINIAUDIO_IMPLEMENTATION
+  #include "{miniAudioPath}/miniaudio.h"
+  """)
 
-{.compile: "miniaudiocimpl.c".}
-when defined(posix):
-  {.passL:"-lpthread -lm -ldl".}
+  {.compile: "miniaudiocimpl.c".}
+  when defined(posix):
+    {.passL:"-lpthread -lm -ldl".}
 
 import std/typetraits
 
