@@ -10,11 +10,12 @@ else:
   import miniaudio/futharkminiaudio
 
 when not defined(nimsuggest):
+  {.passL: "-L" & miniAudioPath.}
   static:
     writeFile("miniaudiocimpl.c",
   fmt"""
   #define MINIAUDIO_IMPLEMENTATION
-  #include "{miniAudioPath}/miniaudio.h"
+  #include "miniaudio/miniaudio.h"
   """)
 
   {.compile: "miniaudiocimpl.c".}
