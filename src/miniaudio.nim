@@ -10,15 +10,7 @@ else:
   import miniaudio/futharkminiaudio
 
 when not defined(nimsuggest):
-  {.passL: "-L" & miniAudioPath.}
-  static:
-    writeFile("miniaudiocimpl.c",
-  fmt"""
-  #define MINIAUDIO_IMPLEMENTATION
-  #include "miniaudio/miniaudio.h"
-  """)
-
-  {.compile: "miniaudiocimpl.c".}
+  {.compile("miniaudio.c", "-DMINIAUDIO_IMPLEMENTATION").}
   when defined(posix):
     {.passL:"-lpthread -lm -ldl".}
 
