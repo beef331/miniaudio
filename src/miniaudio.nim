@@ -102,7 +102,7 @@ proc new*(_: typedesc[AudioEngine]): AudioEngine =
   new result
   wrapError maEngineInit(nil, result)
 
-proc playSound*(engine: AudioEngine, path: string, group: SoundGroup = nil) =
+proc playSound*(engine: AudioEngine, path: string, group: SoundGroup = SoundGroup(nil)) =
   wrapError maEnginePlaySound(engine, path.cstring, group.distinctBase)
 
 proc loadSoundFromFile*(engine: AudioEngine, path: openarray[char], flags = SoundFlags({})): Sound =
