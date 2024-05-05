@@ -83,7 +83,6 @@ proc enabled*(engine: AudioEngine, listener: Listener): bool =
 proc setEnabled*(engine: AudioEngine, listener: Listener, val: bool) =
   engine.maEngineListenerSetEnabled(listener.distinctBase, val)
 
-
 proc getListenerDir*[T: Vec3](engine: AudioEngine, listener: Listener): T =
   mixin `x=`, `y=`, `z=`
   var pos = engine.maEngineListenerGetDirection(uint32 listener)
@@ -95,6 +94,8 @@ proc setListenerDir*(engine: AudioEngine, listener: Listener, pos: Vec3) =
   mixin `x`, `y`, `z`
   engine.maEngineListenerSetDirection(uint32 listener, pos.x, pos.y, pos.z)
 
+proc `volume=`*(engine: AudioEngine, volume: float32) =
+  wrapError engine.maEngineSetVolume(volume)
 
 converter toMaSoundPtr*(s: Sound): ptr maSound = cast[ptr maSound](s)
 
@@ -141,23 +142,23 @@ proc duplicate*(engine: AudioEngine, sound: Sound): Sound =
   new result
   wrapError maSoundInitCopy(engine, sound, 0, nil, result)
 
-template set(name: untyped, t: typedesc) =
+template setSound(name: untyped, t: typedesc) =
   proc name*(sound: Sound): t =
      sound.`maSoundGet name`()
 
   proc `name =`*(sound: Sound, val: t) =
     sound.`maSoundSet name`(val)
 
-set(volume, float32)
-set(pitch, float32)
-set(pan, float32)
-set(rolloff, float32)
-set(minGain, float32)
-set(maxGain, float32)
-set(minDistance, float32)
-set(maxDistance, float32)
-set(dopplerFactor, float32)
-set(panMode, maPanMode)
+setSound(volume, float32)
+setSound(pitch, float32)
+setSound(pan, float32)
+setSound(rolloff, float32)
+setSound(minGain, float32)
+setSound(maxGain, float32)
+setSound(minDistance, float32)
+setSound(maxDistance, float32)
+setSound(dopplerFactor, float32)
+setSound(panMode, maPanMode)
 
 
 template setVec3s(name: untyped) =
