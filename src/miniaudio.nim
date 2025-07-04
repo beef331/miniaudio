@@ -114,7 +114,7 @@ proc playSound*(engine: AudioEngine, path: string, group: SoundGroup = SoundGrou
 
 proc loadSoundFromFile*(engine: AudioEngine, path: openarray[char], flags = SoundFlags({})): Sound =
   new result
-  wrapError maSoundInitFromFile(engine, path[0].unsafeaddr, cast[uint32](flags), nil, nil, result)
+  wrapError maSoundInitFromFile(engine, cast[cstring](path[0].addr), cast[uint32](flags), nil, nil, result)
 
 proc looping*(sound: Sound): bool =
   sound.maSoundIsLooping()
