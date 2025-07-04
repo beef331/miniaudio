@@ -4,7 +4,7 @@ import std/os
 
 version       = "0.1.2"
 author        = "Jason"
-description   = "A new awesome nimble package"
+description   = "A Nim wrapper for miniaudio"
 license       = "MIT"
 srcDir        = "src"
 binDir        = "bin"
