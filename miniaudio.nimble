@@ -1,12 +1,26 @@
 # Package
 
+import std/os
+
 version       = "0.1.2"
 author        = "Jason"
 description   = "A new awesome nimble package"
 license       = "MIT"
 srcDir        = "src"
+binDir        = "bin"
 
 
 # Dependencies
 
-requires "nim >= 1.6.6"
+requires "nim >= 2.2"
+
+taskrequires "generate_wrapper", "futhark"
+
+
+task generate_wrapper, "Generate wrapper module with futhark":
+  let
+    wrapperPath = srcDir / "miniaudio_gen.nim"
+    modulePath = srcDir / "miniaudio.nim"
+
+  rmFile(wrapperPath)
+  selfExec("compile -d:miniAudioUseFuthark --maxLoopIterationsVM:100000000 " & modulePath)

@@ -1,16 +1,22 @@
-import std/[os, strformat]
-const miniAudioPath = currentSourcePath().parentDir / "miniaudio"
+import std/os
+
+const
+  srcDir = currentSourcePath.parentDir
+  miniaudioDir = srcDir.parentDir / "miniaudio"
+  futharkOutputPath = srcDir / "miniaudio_gen.nim"
 
 when defined miniAudioUseFuthark:
+  import futhark
+
   importc:
-    sysPath "/usr/lib/clang/13.0.1/include"
-    path miniAudioPath
+    outputPath futharkOutputPath
+    path miniaudioDir
     "miniaudio.h"
 else:
-  import miniaudio/futharkminiaudio
+  include "miniaudio_gen.nim"
 
 when not defined(nimsuggest):
-  {.compile("miniaudio.c", "-DMINIAUDIO_IMPLEMENTATION").}
+  {.compile: miniaudioDir / "miniaudio.c".}
   when defined(posix):
     {.passL:"-lpthread -lm -ldl".}
 
