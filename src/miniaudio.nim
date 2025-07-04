@@ -50,10 +50,10 @@ type
     noSpatialization
   SoundFlags* = set[SoundFlag]
 
-proc `=destroy`(engine: var TAudioEngine) =
+proc `=destroy`(engine: TAudioEngine) =
   maEngineUninit(engine.addr)
 
-proc `=destroy`(sound: var TSound) =
+proc `=destroy`(sound: TSound) =
   maSoundUninit(sound.addr)
 
 template wrapError(body: typed) =
