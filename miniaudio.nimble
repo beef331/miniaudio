@@ -3,7 +3,7 @@
 import std/os
 
 version       = "0.1.2"
-author        = "Jason"
+author        = "Jason Beetham, Christopher Arndt"
 description   = "A Nim wrapper for miniaudio"
 license       = "MIT"
 srcDir        = "src"
