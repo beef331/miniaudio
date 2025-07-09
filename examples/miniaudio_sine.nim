@@ -3,13 +3,14 @@ import std/[cmdline, math, os, strformat, strutils]
 import miniaudio
 import signal
 
-const PI = 3.14159265358979323846
+
+const TwoPi = math.PI * 2.0
 
 type
   SineWaveData = object
     t = 0.0
     freq = 440.0
-    sampleRate = 48000.0
+    samplePeriod = 0.0
 
 var exitSignalled = false
 
@@ -45,8 +46,8 @@ proc audioCallback(
     outp = cast[ptr UncheckedArray[cfloat]](pOutput)
 
   for i in 0..<frameCount.int:
-    let sample = sin(2.0 * PI * data.freq * data.t)
-    data.t += 1.0 / data.sampleRate
+    let sample = sin(TwoPi * data.freq * data.t)
+    data.t += data.samplePeriod
 
     # Write the same sample to both left and right (stereo).
     outp[i * 2] = sample * 0.2  # Left
@@ -122,7 +123,7 @@ proc main() =
       quit -2
 
   # Get the actual sample rate used by the device
-  data.sampleRate = device.sampleRate.float
+  data.samplePeriod = 1.0 / device.sampleRate.float
 
   block:
     defer:
