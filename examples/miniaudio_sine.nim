@@ -87,7 +87,6 @@ proc main() =
 
   if res != MA_SUCCESS:
     echo(&"Failed to enumerate audio devices (error code {res})\n")
-    discard ma_context_uninit(context.addr)
     quit -1
 
   deviceConfig = ma_device_config_init(ma_device_type_playback)
@@ -118,6 +117,7 @@ proc main() =
   deviceConfig.playback.pDeviceID = deviceIds[deviceIdx].addr
 
   res = ma_device_init(context.addr, deviceConfig.addr, device.addr)
+
   if res != MA_SUCCESS:
       echo &"Failed to initialize playback device (error code {res})"
       quit -2
