@@ -18,9 +18,12 @@ taskrequires "generate_wrapper", "futhark"
 
 
 task generate_wrapper, "Generate wrapper module with futhark":
+  if not fileExists("miniaudio/.git"):
+    exec "git submodule update --init"
+
   let
     wrapperPath = srcDir / "miniaudio_gen.nim"
     modulePath = srcDir / "miniaudio.nim"
 
   rmFile(wrapperPath)
-  selfExec("compile -d:miniAudioUseFuthark --maxLoopIterationsVM:100000000 " & modulePath)
+  selfExec("compile -d:release -d:miniAudioUseFuthark --maxLoopIterationsVM:100000000 " & modulePath)
