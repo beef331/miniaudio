@@ -21,18 +21,17 @@ proc signalCb(sig: cint) {.noconv.} =
 
 
 proc deviceEnumCallback(
-    pContext: ptr ma_context,
     deviceType: ma_device_type,
     pInfo: ptr ma_device_info,
     pUserData: pointer
-  ): ma_bool32 {.cdecl.} =
+  ): ma_device_enumeration_result {.cdecl.} =
   if deviceType == ma_device_type_playback:
     let name = $cast[cstring](pInfo.name[0].addr)
     let ds = cast[ptr seq[ma_device_id]](pUserData)
     ds[].add(pInfo.id)
     echo &"[{ds[].high}]: {name}"
 
-  return MA_TRUE
+  return MA_DEVICE_ENUMERATION_CONTINUE
 
 
 proc audioCallback(
@@ -58,10 +57,10 @@ proc main() =
   var
     res: ma_result
     context: ma_context
-    backends: array[3, ma_backend] = [
-      ma_backend_jack,
-      ma_backend_pulseaudio,
-      ma_backend_alsa
+    backends: array[3, ma_device_backend_config] = [
+      ma_device_backend_config_init(ma_device_backend_jack, nil),
+      ma_device_backend_config_init(ma_device_backend_pulseaudio, nil),
+      ma_device_backend_config_init(ma_device_backend_alsa, nil)
     ]
     deviceConfig: ma_device_config
     deviceIds: seq[ma_device_id]
@@ -69,7 +68,7 @@ proc main() =
     data = SineWaveData.default
 
   res = ma_context_init(
-    cast[ptr UncheckedArray[ma_backend]](backends[0].addr),
+    cast[ptr ma_device_backend_config](backends[0].addr),
     backends.len.ma_uint32,
     nil,
     context.addr)

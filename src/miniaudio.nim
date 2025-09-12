@@ -146,7 +146,7 @@ proc length*(sound: Sound): float32 =
 proc duplicate*(engine: AudioEngine, sound: Sound): Sound =
   assert sound != nil
   new result
-  wrapError maSoundInitCopy(engine, sound, 0, nil, result)
+  wrapError maSoundInitCopy(engine, sound, 0, nil, nil, result)
 
 template setSound(name: untyped, t: typedesc) =
   proc name*(sound: Sound): t =
@@ -192,6 +192,7 @@ when isMainModule:
   var
     engine = AudioEngine.new()
     sound = loadSoundFromFile(engine, "test.wav")
+
   sound.looping = true
   sound.start()
   sound.position = (x: 10f, y: 10f, z: 0.1f)
