@@ -4,6 +4,10 @@ import miniaudio
 import signal
 
 const TwoPi = math.PI * 2.0
+var exitSignalled = false
+
+proc signalCb(sig: cint) {.noconv.} =
+  exitSignalled = true
 
 type
   Sineosc = object
@@ -11,12 +15,6 @@ type
     freq = 440.0
     samplePeriod = 0.0
     volume = 0.2
-
-var exitSignalled = false
-
-
-proc signalCb(sig: cint) {.noconv.} =
-    exitSignalled = true
 
 proc process(osc: var SineOsc): float =
   result = sin(TwoPi * osc.freq * osc.t) * osc.volume
@@ -45,7 +43,7 @@ proc main() =
     maDeviceBackendConfigInit(maDeviceBackendPulseaudio, nil),
     maDeviceBackendConfigInit(maDeviceBackendAlsa, nil)
   ]
-  var ctx = newAudioContext(backends)
+  let ctx = newAudioContext(backends)
 
   let devs = ctx.getPlaybackDevices()
   echo "Available playback devices:"

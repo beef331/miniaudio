@@ -263,7 +263,7 @@ proc audioCallback(
   dev.callback(output, input, frameCount.int, dev.userData)
 
 proc newAudioDevice*(
-  ctx: var AudioContext,
+  ctx: AudioContext,
   device: DeviceInfo,
   deviceType = maDeviceTypePlayback,
   channels = 2,
