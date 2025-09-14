@@ -1,4 +1,4 @@
-import std/os
+import std/[options, os, sequtils, typetraits]
 
 const
   srcDir = currentSourcePath.parentDir
@@ -20,7 +20,6 @@ when not defined(nimsuggest):
   when defined(posix):
     {.passL:"-lpthread -lm -ldl".}
 
-import std/typetraits
 
 type
   Listener* = distinct uint32
@@ -200,12 +199,14 @@ type
 
   DeviceInfo* = object
     id*: maDeviceId
+    deviceType: maDeviceType
     name*: string
+    isDefault*: bool
 
   TAudioContext = object of maContext
   AudioContext* = ref TAudioContext
 
-  TAudioDevice* = object
+  TAudioDevice = object
     device*: maDevice
     config*: maDeviceConfig
     context*: AudioContext
@@ -220,30 +221,39 @@ proc `=destroy`(ctx: TAudioContext) =
   discard maContextUninit(ctx.addr)
 
 proc newAudioContext*(
-    backends: openArray[maDeviceBackendConfig], 
+    backends: openArray[maDeviceBackendConfig],
     ctxConfig: ptr maContextConfig = nil
-  ): AudioContext =
+): AudioContext =
   new result
   wrapError "Failed to initialize miniaudio context.":
     ma_context_init(cast[ptr maDeviceBackendConfig](backends[0].addr), backends.len.ma_uint32,
                     ctxConfig, result)
 
 # --- Device Enumeration ---
-proc getPlaybackDevices*(ctx: AudioContext): seq[DeviceInfo] =
-  proc enumCb(
-      deviceType: ma_device_type,
-      pInfo: ptr maDeviceInfo,
-      pUserData: pointer
-  ): maDeviceEnumerationResult {.cdecl.} =
-    if deviceType == maDeviceTypePlayback:
-      let devices = cast[ptr seq[DeviceInfo]](pUserData)
-      let name = $cast[cstring](pInfo.name[0].addr)
-      devices[].add DeviceInfo(id: pInfo.id, name: name)
+proc deviceEnumerationCallback(
+    deviceType: maDeviceType,
+    pInfo: ptr maDeviceInfo,
+    pUserData: pointer
+): maDeviceEnumerationResult {.cdecl.} =
+  let devices = cast[ptr seq[DeviceInfo]](pUserData)
+  let name = $cast[cstring](pInfo.name[0].addr)
+  let info = DeviceInfo(
+    id: pInfo.id,
+    deviceType: deviceType,
+    name: name,
+    isDefault: pInfo.isDefault.bool
+  )
+  devices[].add(info)
 
-    return MA_DEVICE_ENUMERATION_CONTINUE
+  return MA_DEVICE_ENUMERATION_CONTINUE
 
-  wrapError "Failed to enumerate playback devices.":
-    maContextEnumerateDevices(ctx, enumCb, result.addr)
+proc getDevices*(
+  ctx: AudioContext,
+  types: seq[maDeviceType] = @[maDeviceTypeCapture, maDeviceTypePlayback]
+): seq[DeviceInfo] =
+  wrapError "Failed to enumerate devices.":
+    maContextEnumerateDevices(ctx, deviceEnumerationCallback, result.addr)
+  result.keepItIf(it.deviceType in types)
 
 # --- AudioDevice ---
 proc `=destroy`(dev: TAudioDevice) =
@@ -264,23 +274,36 @@ proc audioCallback(
 
 proc newAudioDevice*(
   ctx: AudioContext,
-  device: DeviceInfo,
   deviceType = maDeviceTypePlayback,
+  playbackDevice: Option[DeviceInfo] = none(DeviceInfo),
+  captureDevice: Option[DeviceInfo] = none(DeviceInfo),
+  format = maFormatF32,
   channels = 2,
   sampleRate = 0,
-  format = maFormatF32,
   callback: ProcessCallback,
   userData: pointer = nil
 ): AudioDevice =
   new result
 
   var config = maDeviceConfigInit(deviceType)
-  config.playback.format = format
-  config.playback.channels = channels.maUint32
+
+  if deviceType in @[maDeviceTypePlayback, maDeviceTypeDuplex]:
+    config.playback.format = format
+    config.playback.channels = channels.maUint32
+
+    if playback_device.isSome:
+      config.playback.pDeviceID = playback_device.get().id.addr
+
+  if deviceType in @[maDeviceTypeCapture, maDeviceTypeDuplex, maDeviceTypeLoopback]:
+    config.capture.format = format
+    config.capture.channels = channels.maUint32
+
+    if capture_device.isSome:
+      config.capture.pDeviceID = capture_device.get().id.addr
+
   config.sampleRate = sampleRate.maUint32
   config.noClip = MA_TRUE
   config.noPreSilencedOutputBuffer = MA_TRUE
-  config.playback.pDeviceID = device.id.addr
 
   result.config = config
   result.context = ctx

@@ -1,4 +1,4 @@
-import std/[cmdline, math, os, strformat, strutils]
+import std/[cmdline, math, options, os, strformat, strutils]
 
 import miniaudio
 import signal
@@ -37,7 +37,6 @@ proc processCallback(
     output[i*2+1] = sample  # Right
 
 proc main() =
-  let idx = if paramCount() > 0: paramStr(1).parseInt else: 0
   let backends = [
     maDeviceBackendConfigInit(maDeviceBackendJack, nil),
     maDeviceBackendConfigInit(maDeviceBackendPulseaudio, nil),
@@ -45,15 +44,33 @@ proc main() =
   ]
   let ctx = newAudioContext(backends)
 
-  let devs = ctx.getPlaybackDevices()
+  let devs = ctx.getDevices(@[maDeviceTypePlayback])
   echo "Available playback devices:"
 
   for i, d in devs:
-    echo &"  [{i}]: {d.name}"
+    echo &"  [{i}]: {d.name}" & (if d.isDefault: " *" else: "")
+
+  var idx = -1
+  if paramCount() > 0:
+    idx = paramStr(1).parseInt
+
+  if idx < devs.low or idx > devs.high:
+    for i, d in devs:
+      if d.isDefault:
+        idx = i
+        break
 
   var
     sine = default(SineOsc)
-    dev = ctx.newAudioDevice(devs[idx], callback = processCallback, userData = sine.addr)
+    # Create audio device with mostly default settings:
+    #   playback, 2 channels, device default sample rate, 32-bit float samples
+    # Set audio callback to `processCallback` proc, the pointer to `sine` will
+    # be passed to it as `userData`.
+    dev = ctx.newAudioDevice(
+      playbackDevice = some(devs[idx]),
+      callback = processCallback,
+      userData = sine.addr
+    )
 
   sine.setSampleRate(dev.sampleRate.float)
   dev.start()
