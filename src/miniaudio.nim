@@ -249,7 +249,7 @@ proc deviceEnumerationCallback(
 
 proc getDevices*(
   ctx: AudioContext,
-  types: seq[maDeviceType] = @[maDeviceTypeCapture, maDeviceTypePlayback]
+  types: set[maDeviceType] = {maDeviceTypeCapture, maDeviceTypePlayback}
 ): seq[DeviceInfo] =
   wrapError "Failed to enumerate devices":
     maContextEnumerateDevices(ctx, deviceEnumerationCallback, result.addr)
@@ -287,14 +287,14 @@ proc newAudioDevice*(
 
   var config = maDeviceConfigInit(deviceType)
 
-  if deviceType in @[maDeviceTypePlayback, maDeviceTypeDuplex]:
+  if deviceType in {maDeviceTypePlayback, maDeviceTypeDuplex}:
     config.playback.format = format
     config.playback.channels = channels.maUint32
 
     if playback_device.isSome:
       config.playback.pDeviceID = playback_device.get().id.addr
 
-  if deviceType in @[maDeviceTypeCapture, maDeviceTypeDuplex, maDeviceTypeLoopback]:
+  if deviceType in {maDeviceTypeCapture, maDeviceTypeDuplex, maDeviceTypeLoopback}:
     config.capture.format = format
     config.capture.channels = channels.maUint32
 

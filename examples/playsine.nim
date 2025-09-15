@@ -47,7 +47,7 @@ proc main() =
   let ctx = newAudioContext(backends)
   var idx = if paramCount() > 0: paramStr(1).parseInt else: -1
 
-  let devs = ctx.getDevices(@[maDeviceTypePlayback])
+  let devs = ctx.getDevices({maDeviceTypePlayback})
   echo "Available playback devices:"
 
   if idx < devs.low or idx > devs.high:
