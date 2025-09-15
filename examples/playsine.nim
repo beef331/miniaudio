@@ -43,22 +43,19 @@ proc main() =
     maDeviceBackendConfigInit(maDeviceBackendAlsa, nil)
   ]
   let ctx = newAudioContext(backends)
+  var idx = if paramCount() > 0: paramStr(1).parseInt else: -1
 
   let devs = ctx.getDevices(@[maDeviceTypePlayback])
   echo "Available playback devices:"
-
-  for i, d in devs:
-    echo &"  [{i}]: {d.name}" & (if d.isDefault: " *" else: "")
-
-  var idx = -1
-  if paramCount() > 0:
-    idx = paramStr(1).parseInt
 
   if idx < devs.low or idx > devs.high:
     for i, d in devs:
       if d.isDefault:
         idx = i
         break
+
+  for i, d in devs:
+    echo (if i == idx: "* " else: "  ") & &"[{i}]: {d.name}" & (if d.isDefault: " [default]" else: "")
 
   var
     sine = default(SineOsc)
