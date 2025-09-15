@@ -58,7 +58,7 @@ proc `=destroy`(sound: TSound) =
 template wrapError(msg: string, body: typed) =
   let res = body
   if res != MaSuccess:
-    raise newException(MiniAudioError, "miniaudio error (" & $res & "): " & msg)
+    raise newException(MiniAudioError, msg & " (err: " & $res & ").")
 
 converter toMaEnginePtr*(s: AudioEngine): ptr maEngine = cast[ptr maEngine](s)
 
@@ -100,23 +100,23 @@ proc setListenerDir*(engine: AudioEngine, listener: Listener, pos: Vec3) =
   engine.maEngineListenerSetDirection(uint32 listener, pos.x, pos.y, pos.z)
 
 proc `volume=`*(engine: AudioEngine, volume: float32) =
-  wrapError "Could not set wolume.":
+  wrapError "Could not set volume":
     engine.maEngineSetVolume(volume)
 
 converter toMaSoundPtr*(s: Sound): ptr maSound = cast[ptr maSound](s)
 
 proc new*(_: typedesc[AudioEngine]): AudioEngine =
   new result
-  wrapError "Could not create AudioEngine.":
+  wrapError "Could not create AudioEngine":
     maEngineInit(nil, result)
 
 proc playSound*(engine: AudioEngine, path: string, group: SoundGroup = SoundGroup(nil)) =
-  wrapError "Could not play sound.":
+  wrapError "Could not play sound":
     maEnginePlaySound(engine, path.cstring, group.distinctBase)
 
 proc loadSoundFromFile*(engine: AudioEngine, path: openarray[char], flags = SoundFlags({})): Sound =
   new result
-  wrapError "Could not load sound.":
+  wrapError "Could not load sound":
     maSoundInitFromFile(engine, cast[cstring](path[0].addr), cast[uint32](flags), nil, nil, result)
 
 proc looping*(sound: Sound): bool =
@@ -132,18 +132,18 @@ proc `spatial=`*(sound: Sound, isLooping: bool) =
   sound.maSoundSetSpatializationEnabled(isLooping)
 
 proc start*(sound: Sound) =
-  wrapError "Could not start sound.":
+  wrapError "Could not start sound":
     maSoundStart(sound)
 
 proc stop*(sound: Sound) =
-  wrapError "Could not stop sound.":
+  wrapError "Could not stop sound":
     maSoundStop(sound)
 
 proc atEnd*(sound: Sound): bool =
   sound.maSoundAtEnd()
 
 proc cursor*(sound: Sound): float32 =
-  wrapError "Could not get cursor.":
+  wrapError "Could not get cursor":
     sound.maSoundGetCursorInSeconds(result.addr)
 
 proc length*(sound: Sound): float32 =
@@ -153,7 +153,7 @@ proc length*(sound: Sound): float32 =
 proc duplicate*(engine: AudioEngine, sound: Sound): Sound =
   assert sound != nil
   new result
-  wrapError "Could not copy sond.":
+  wrapError "Could not copy sound":
     maSoundInitCopy(engine, sound, 0, nil, nil, result)
 
 template setSound(name: untyped, t: typedesc) =
@@ -225,7 +225,7 @@ proc newAudioContext*(
     ctxConfig: ptr maContextConfig = nil
 ): AudioContext =
   new result
-  wrapError "Failed to initialize miniaudio context.":
+  wrapError "Failed to initialize miniaudio context":
     ma_context_init(cast[ptr maDeviceBackendConfig](backends[0].addr), backends.len.ma_uint32,
                     ctxConfig, result)
 
@@ -251,7 +251,7 @@ proc getDevices*(
   ctx: AudioContext,
   types: seq[maDeviceType] = @[maDeviceTypeCapture, maDeviceTypePlayback]
 ): seq[DeviceInfo] =
-  wrapError "Failed to enumerate devices.":
+  wrapError "Failed to enumerate devices":
     maContextEnumerateDevices(ctx, deviceEnumerationCallback, result.addr)
   result.keepItIf(it.deviceType in types)
 
