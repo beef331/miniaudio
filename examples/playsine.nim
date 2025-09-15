@@ -38,6 +38,8 @@ proc processCallback(
 
 proc main() =
   let backends = [
+    maDeviceBackendConfigInit(maDeviceBackendCoreaudio, nil),
+    maDeviceBackendConfigInit(maDeviceBackendWasapi, nil),
     maDeviceBackendConfigInit(maDeviceBackendJack, nil),
     maDeviceBackendConfigInit(maDeviceBackendPulseaudio, nil),
     maDeviceBackendConfigInit(maDeviceBackendAlsa, nil)
