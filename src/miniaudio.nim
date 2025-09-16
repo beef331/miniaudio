@@ -226,7 +226,7 @@ proc newAudioContext*(
 ): AudioContext =
   new result
   wrapError "Failed to initialize miniaudio context":
-    ma_context_init(cast[ptr maDeviceBackendConfig](backends[0].addr), backends.len.ma_uint32,
+    ma_context_init(if backends.len > 0: cast[ptr maDeviceBackendConfig](backends[0].addr) else: nil, backends.len.ma_uint32,
                     ctxConfig, result)
 
 # --- Device Enumeration ---
