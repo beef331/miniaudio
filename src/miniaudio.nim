@@ -1,16 +1,22 @@
-import std/[os, strformat]
-const miniAudioPath = currentSourcePath().parentDir / "miniaudio"
+import std/os
+
+const
+  srcDir = currentSourcePath.parentDir
+  miniaudioDir = srcDir.parentDir / "miniaudio"
+  futharkOutputPath = srcDir / "miniaudio_gen.nim"
 
 when defined miniAudioUseFuthark:
+  import futhark
+
   importc:
-    sysPath "/usr/lib/clang/13.0.1/include"
-    path miniAudioPath
+    outputPath futharkOutputPath
+    path miniaudioDir
     "miniaudio.h"
 else:
-  import miniaudio/futharkminiaudio
+  include "miniaudio_gen.nim"
 
 when not defined(nimsuggest):
-  {.compile("miniaudio.c", "-DMINIAUDIO_IMPLEMENTATION").}
+  {.compile: miniaudioDir / "miniaudio.c".}
   when defined(posix):
     {.passL:"-lpthread -lm -ldl".}
 
@@ -44,10 +50,10 @@ type
     noSpatialization
   SoundFlags* = set[SoundFlag]
 
-proc `=destroy`(engine: var TAudioEngine) =
+proc `=destroy`(engine: TAudioEngine) =
   maEngineUninit(engine.addr)
 
-proc `=destroy`(sound: var TSound) =
+proc `=destroy`(sound: TSound) =
   maSoundUninit(sound.addr)
 
 template wrapError(body: typed) =
@@ -108,7 +114,7 @@ proc playSound*(engine: AudioEngine, path: string, group: SoundGroup = SoundGrou
 
 proc loadSoundFromFile*(engine: AudioEngine, path: openarray[char], flags = SoundFlags({})): Sound =
   new result
-  wrapError maSoundInitFromFile(engine, path[0].unsafeaddr, cast[uint32](flags), nil, nil, result)
+  wrapError maSoundInitFromFile(engine, cast[cstring](path[0].addr), cast[uint32](flags), nil, nil, result)
 
 proc looping*(sound: Sound): bool =
   sound.maSoundIsLooping()
@@ -140,7 +146,7 @@ proc length*(sound: Sound): float32 =
 proc duplicate*(engine: AudioEngine, sound: Sound): Sound =
   assert sound != nil
   new result
-  wrapError maSoundInitCopy(engine, sound, 0, nil, result)
+  wrapError maSoundInitCopy(engine, sound, 0, nil, nil, result)
 
 template setSound(name: untyped, t: typedesc) =
   proc name*(sound: Sound): t =
@@ -186,6 +192,7 @@ when isMainModule:
   var
     engine = AudioEngine.new()
     sound = loadSoundFromFile(engine, "test.wav")
+
   sound.looping = true
   sound.start()
   sound.position = (x: 10f, y: 10f, z: 0.1f)
