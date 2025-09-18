@@ -1,4 +1,4 @@
-import std/os
+import std/[options, os, sequtils, typetraits]
 
 const
   srcDir = currentSourcePath.parentDir
@@ -20,7 +20,6 @@ when not defined(nimsuggest):
   when defined(posix):
     {.passL:"-lpthread -lm -ldl".}
 
-import std/typetraits
 
 type
   Listener* = distinct uint32
@@ -28,7 +27,7 @@ type
   AudioEngine* = ref TAudioEngine
   AudioResult* = maResult
   TSound = object of maSound
-  Sound* =  ref TSound
+  Sound* = ref TSound
   SoundGroup* = distinct ptr maSoundGroup
   MiniAudioError* = object of CatchableError
 
@@ -56,10 +55,10 @@ proc `=destroy`(engine: TAudioEngine) =
 proc `=destroy`(sound: TSound) =
   maSoundUninit(sound.addr)
 
-template wrapError(body: typed) =
+template wrapError(msg: string, body: typed) =
   let res = body
   if res != MaSuccess:
-    raise newException(MiniAudioError, $res)
+    raise newException(MiniAudioError, msg & " (err: " & $res & ").")
 
 converter toMaEnginePtr*(s: AudioEngine): ptr maEngine = cast[ptr maEngine](s)
 
@@ -101,20 +100,24 @@ proc setListenerDir*(engine: AudioEngine, listener: Listener, pos: Vec3) =
   engine.maEngineListenerSetDirection(uint32 listener, pos.x, pos.y, pos.z)
 
 proc `volume=`*(engine: AudioEngine, volume: float32) =
-  wrapError engine.maEngineSetVolume(volume)
+  wrapError "Could not set volume":
+    engine.maEngineSetVolume(volume)
 
 converter toMaSoundPtr*(s: Sound): ptr maSound = cast[ptr maSound](s)
 
 proc new*(_: typedesc[AudioEngine]): AudioEngine =
   new result
-  wrapError maEngineInit(nil, result)
+  wrapError "Could not create AudioEngine":
+    maEngineInit(nil, result)
 
 proc playSound*(engine: AudioEngine, path: string, group: SoundGroup = SoundGroup(nil)) =
-  wrapError maEnginePlaySound(engine, path.cstring, group.distinctBase)
+  wrapError "Could not play sound":
+    maEnginePlaySound(engine, path.cstring, group.distinctBase)
 
 proc loadSoundFromFile*(engine: AudioEngine, path: openarray[char], flags = SoundFlags({})): Sound =
   new result
-  wrapError maSoundInitFromFile(engine, cast[cstring](path[0].addr), cast[uint32](flags), nil, nil, result)
+  wrapError "Could not load sound":
+    maSoundInitFromFile(engine, cast[cstring](path[0].addr), cast[uint32](flags), nil, nil, result)
 
 proc looping*(sound: Sound): bool =
   sound.maSoundIsLooping()
@@ -129,24 +132,29 @@ proc `spatial=`*(sound: Sound, isLooping: bool) =
   sound.maSoundSetSpatializationEnabled(isLooping)
 
 proc start*(sound: Sound) =
-  wrapError maSoundStart(sound)
+  wrapError "Could not start sound":
+    maSoundStart(sound)
 
 proc stop*(sound: Sound) =
-  wrapError maSoundStop(sound)
+  wrapError "Could not stop sound":
+    maSoundStop(sound)
 
 proc atEnd*(sound: Sound): bool =
   sound.maSoundAtEnd()
 
 proc cursor*(sound: Sound): float32 =
-  wrapError sound.maSoundGetCursorInSeconds(result.addr)
+  wrapError "Could not get cursor":
+    sound.maSoundGetCursorInSeconds(result.addr)
 
 proc length*(sound: Sound): float32 =
-  wrapError sound.maSoundGetLengthInSeconds(result.addr)
+  wrapError "Could not get sound length":
+    sound.maSoundGetLengthInSeconds(result.addr)
 
 proc duplicate*(engine: AudioEngine, sound: Sound): Sound =
   assert sound != nil
   new result
-  wrapError maSoundInitCopy(engine, sound, 0, nil, nil, result)
+  wrapError "Could not copy sound":
+    maSoundInitCopy(engine, sound, 0, nil, nil, result)
 
 template setSound(name: untyped, t: typedesc) =
   proc name*(sound: Sound): t =
@@ -166,7 +174,6 @@ setSound(maxDistance, float32)
 setSound(dopplerFactor, float32)
 setSound(panMode, maPanMode)
 
-
 template setVec3s(name: untyped) =
   proc name*[T: Vec3](sound: Sound): T =
     mixin `x=`, `y=`, `z=`
@@ -182,6 +189,143 @@ template setVec3s(name: untyped) =
 setVec3s(position)
 setVec3s(direction)
 setVec3s(velocity)
+
+
+# ---- Low-level API ----
+
+type
+  SampleBuffer* = UncheckedArray[cfloat]
+  ProcessCallback = proc(output, input: ptr SampleBuffer, frames: int, dev: pointer)
+
+  DeviceInfo* = object
+    id*: maDeviceId
+    deviceType: maDeviceType
+    name*: string
+    isDefault*: bool
+
+  TAudioContext = object of maContext
+  AudioContext* = ref TAudioContext
+
+  TAudioDevice = object
+    device*: maDevice
+    config*: maDeviceConfig
+    context*: AudioContext
+    callback: ProcessCallback
+    userData: pointer
+  AudioDevice* = ref TAudioDevice
+
+converter toMaContextPtr*(ctx: AudioContext): ptr maContext = cast[ptr maContext](ctx)
+
+# --- AudioContext ---
+proc `=destroy`(ctx: TAudioContext) =
+  discard maContextUninit(ctx.addr)
+
+proc newAudioContext*(
+    backends: openArray[maDeviceBackendConfig],
+    ctxConfig: ptr maContextConfig = nil
+): AudioContext =
+  new result
+  wrapError "Failed to initialize miniaudio context":
+    ma_context_init(if backends.len > 0: cast[ptr maDeviceBackendConfig](backends[0].addr) else: nil, backends.len.ma_uint32,
+                    ctxConfig, result)
+
+# --- Device Enumeration ---
+proc deviceEnumerationCallback(
+    deviceType: maDeviceType,
+    pInfo: ptr maDeviceInfo,
+    pUserData: pointer
+): maDeviceEnumerationResult {.cdecl.} =
+  let devices = cast[ptr seq[DeviceInfo]](pUserData)
+  let name = $cast[cstring](pInfo.name[0].addr)
+  let info = DeviceInfo(
+    id: pInfo.id,
+    deviceType: deviceType,
+    name: name,
+    isDefault: pInfo.isDefault.bool
+  )
+  devices[].add(info)
+
+  return MA_DEVICE_ENUMERATION_CONTINUE
+
+proc getDevices*(
+  ctx: AudioContext,
+  types: set[maDeviceType] = {maDeviceTypeCapture, maDeviceTypePlayback}
+): seq[DeviceInfo] =
+  wrapError "Failed to enumerate devices":
+    maContextEnumerateDevices(ctx, deviceEnumerationCallback, result.addr)
+  result.keepItIf(it.deviceType in types)
+
+# --- AudioDevice ---
+proc `=destroy`(dev: TAudioDevice) =
+  maDeviceUninit(dev.device.addr)
+
+proc audioCallback(
+    pDevice: ptr maDevice,
+    pOutput: pointer,
+    pInput: pointer,
+    frameCount: maUint32
+) {.cdecl.} =
+  let
+    dev = cast[AudioDevice](pDevice.pUserData)
+    output = cast[ptr SampleBuffer](pOutput)
+    input = cast[ptr SampleBuffer](pInput)
+
+  dev.callback(output, input, frameCount.int, dev.userData)
+
+proc newAudioDevice*(
+  ctx: AudioContext,
+  deviceType = maDeviceTypePlayback,
+  playbackDevice: Option[DeviceInfo] = none(DeviceInfo),
+  captureDevice: Option[DeviceInfo] = none(DeviceInfo),
+  format = maFormatF32,
+  channels = 2,
+  sampleRate = 0,
+  callback: ProcessCallback,
+  userData: pointer = nil
+): AudioDevice =
+  new result
+
+  var config = maDeviceConfigInit(deviceType)
+
+  if deviceType in {maDeviceTypePlayback, maDeviceTypeDuplex}:
+    config.playback.format = format
+    config.playback.channels = channels.maUint32
+
+    if playback_device.isSome:
+      config.playback.pDeviceID = playback_device.get().id.addr
+
+  if deviceType in {maDeviceTypeCapture, maDeviceTypeDuplex, maDeviceTypeLoopback}:
+    config.capture.format = format
+    config.capture.channels = channels.maUint32
+
+    if capture_device.isSome:
+      config.capture.pDeviceID = capture_device.get().id.addr
+
+  config.sampleRate = sampleRate.maUint32
+  config.noClip = MA_TRUE
+  config.noPreSilencedOutputBuffer = MA_TRUE
+
+  result.config = config
+  result.context = ctx
+  result.callback = callback
+  result.userData = userData
+  config.pUserData = cast[pointer](result)
+  config.dataCallback = audioCallback
+
+  wrapError "Failed to initialize device":
+    maDeviceInit(ctx, config.addr, result.device.addr)
+
+proc sampleRate*(dev: AudioDevice): int =
+  dev.device.sampleRate.int
+
+proc start*(dev: AudioDevice) =
+  wrapError "Failed to start playback device":
+    maDeviceStart(dev.device.addr)
+
+proc stop*(dev: AudioDevice) =
+  wrapError "Failed to stop playback device":
+    maDeviceStop(dev.device.addr)
+
 
 when isMainModule:
   import std/os
@@ -200,4 +344,3 @@ when isMainModule:
 
   echo "Press Enter to quit..."
   discard stdin.readLine()
-
